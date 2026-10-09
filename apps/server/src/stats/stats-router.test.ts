@@ -7,10 +7,12 @@ import { createBook } from '../db/factories/book-factory';
 import { createBookDevice } from '../db/factories/book-device-factory';
 import { createPageStat } from '../db/factories/page-stat-factory';
 import { Book, BookDevice, Device } from '@koinsight/common/types';
+import { TEST_USER_ID, asTestUser } from '../db/factories/test-user';
 
 describe('GET /stats', () => {
   const app = express();
   app.use(express.json());
+  app.use(asTestUser);
   app.use('/stats', statsRouter);
 
   let device: Device;
@@ -18,7 +20,7 @@ describe('GET /stats', () => {
   let bookDevice: BookDevice;
 
   beforeEach(async () => {
-    device = await createDevice(db, { model: 'Device 1' });
+    device = await createDevice(db, { user_id: TEST_USER_ID, model: 'Device 1' });
     book = await createBook(db, { reference_pages: 100 });
     bookDevice = await createBookDevice(db, book, device, { pages: 100 });
   });

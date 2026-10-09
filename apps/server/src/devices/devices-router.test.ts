@@ -3,21 +3,23 @@ import request from 'supertest';
 import { createDevice } from '../db/factories/device-factory';
 import { db } from '../knex';
 import { devicesRouter } from './devices-router';
+import { TEST_USER_ID, asTestUser } from '../db/factories/test-user';
 
 describe('GET /devices', () => {
   const app = express();
   app.use(express.json());
+  app.use(asTestUser);
   app.use('/devices', devicesRouter);
 
   it('returns all devices as JSON', async () => {
-    await createDevice(db, { model: 'Device 1' });
+    await createDevice(db, { user_id: TEST_USER_ID, model: 'Device 1' });
 
     let response = await request(app).get('/devices');
     expect(response.status).toBe(200);
     expect(response.body).toHaveLength(1);
     expect(response.body[0]).toEqual(expect.objectContaining({ model: 'Device 1' }));
 
-    await createDevice(db, { model: 'Device 2' });
+    await createDevice(db, { user_id: TEST_USER_ID, model: 'Device 2' });
 
     response = await request(app).get('/devices');
     expect(response.status).toBe(200);

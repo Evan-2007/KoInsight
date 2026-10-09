@@ -9,11 +9,12 @@ const router = Router();
 /**
  * Get all stats
  */
-router.get('/', async (_: Request, res: Response) => {
-  const books = await BooksRepository.getAllWithData();
+router.get('/', async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const books = await BooksRepository.getAllWithData(userId);
   const totalPagesRead = StatsService.totalPagesRead(books);
 
-  const stats = await StatsRepository.getAll();
+  const stats = await StatsRepository.getAll(userId);
   const perMonth = StatsService.getPerMonthReadingTime(stats);
   const perDayOfTheWeek = StatsService.perDayOfTheWeek(stats);
   const mostPagesInADay = StatsService.mostPagesInADay(books, stats);
@@ -40,7 +41,7 @@ router.get('/', async (_: Request, res: Response) => {
  */
 router.get('/:book_md5', async (req: Request<{ book_md5: string }>, res: Response) => {
   const book_md5 = req.params.book_md5;
-  const book = await StatsRepository.getByBookMD5(book_md5);
+  const book = await StatsRepository.getByBookMD5(book_md5, req.user!.id);
   res.status(200).json(book);
 });
 

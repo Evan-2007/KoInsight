@@ -67,15 +67,15 @@ export class BooksService {
     );
   }
 
-  static async withData(book: Book, includeDeleted = false): Promise<BookWithData> {
-    const stats = await StatsRepository.getByBookMD5(book.md5);
-    const bookDevices = await BooksRepository.getBookDevices(book.md5);
+  static async withData(book: Book, userId: number, includeDeleted = false): Promise<BookWithData> {
+    const stats = await StatsRepository.getByBookMD5(book.md5, userId);
+    const bookDevices = await BooksRepository.getBookDevices(book.md5, userId);
     const genres = await GenreRepository.getByBookMd5(book.md5);
 
     // Get annotations data
-    const annotations = await AnnotationsRepository.getByBookMd5(book.md5);
-    const annotationCounts = await AnnotationsRepository.getCountsByType(book.md5);
-    const deletedCount = await AnnotationsRepository.getDeletedCount(book.md5);
+    const annotations = await AnnotationsRepository.getByBookMd5(book.md5, undefined, userId);
+    const annotationCounts = await AnnotationsRepository.getCountsByType(book.md5, userId);
+    const deletedCount = await AnnotationsRepository.getDeletedCount(book.md5, userId);
 
     const total_pages = this.getTotalPages(book, bookDevices);
     const total_read_time = this.getTotalReadTime(bookDevices);

@@ -4,11 +4,12 @@ import { createDevice } from '../db/factories/device-factory';
 import { db } from '../knex';
 import { AnnotationsRepository } from '../annotations/annotations-repository';
 import { UploadService } from './upload-service';
+import { TEST_USER_ID } from '../db/factories/test-user';
 
 describe('UploadService with annotations', () => {
   describe('annotation data structure from KoReader', () => {
     it('can process KoReader annotation format', async () => {
-      const device = await createDevice(db);
+      const device = await createDevice(db, { user_id: TEST_USER_ID });
       const book = await createBook(db, { md5: 'test-book-md5-123' });
 
       const koreaderAnnotations: KoReaderAnnotation[] = [
@@ -70,7 +71,7 @@ describe('UploadService with annotations', () => {
     });
 
     it('updates existing annotations on re-upload', async () => {
-      const device = await createDevice(db);
+      const device = await createDevice(db, { user_id: TEST_USER_ID });
       const book = await createBook(db, { md5: 'update-test-book' });
 
       const initialAnnotations: KoReaderAnnotation[] = [
@@ -150,7 +151,7 @@ describe('UploadService page stat input hardening', () => {
 
   it('drops null/undefined/non-object entries in stats array', async () => {
     const book = await createBook(db, { md5: 'hardening-test-2' });
-    const device = await createDevice(db);
+    const device = await createDevice(db, { user_id: TEST_USER_ID });
 
     const statsWithJunk = [
       null,
@@ -177,7 +178,7 @@ describe('UploadService page stat input hardening', () => {
 
   it('drops stats with zero or invalid duration/total_pages', async () => {
     const book = await createBook(db, { md5: 'hardening-test-3' });
-    const device = await createDevice(db);
+    const device = await createDevice(db, { user_id: TEST_USER_ID });
 
     const invalidStats: PageStat[] = [
       {

@@ -8,6 +8,8 @@ local logger = require("logger")
 local UIManager = require("ui/uimanager")
 local const = require("./const")
 local Device = require("device")
+local KoInsightSettings = require("settings")
+local sha2 = require("ffi/sha2")
 
 local API_UPLOAD_LOCATION = "/api/plugin/import"
 local API_DEVICE_LOCATION = "/api/plugin/device"
@@ -15,9 +17,13 @@ local API_DEVICE_LOCATION = "/api/plugin/device"
 local KoInsightUpload = {}
 
 function get_headers(body)
+  local settings = KoInsightSettings:new()
   local headers = {
     ["Content-Type"] = "application/json",
     ["Content-Length"] = tostring(#body),
+    -- Same credentials format as KOReader's progress sync: key is sent as md5
+    ["x-auth-user"] = settings:getUsername(),
+    ["x-auth-key"] = sha2.md5(settings:getSyncKey()),
   }
   return headers
 end
@@ -69,6 +75,7 @@ function send_statistics_data(server_url, silent)
     stats = KoInsightDbReader.progressData(),
     books = KoInsightDbReader.bookData(),
     annotations = annotations,
+    device_id = G_reader_settings:readSetting("device_id"),
     version = const.VERSION,
   }
 

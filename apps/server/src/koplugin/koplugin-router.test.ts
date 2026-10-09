@@ -1,19 +1,53 @@
+import { createHash } from 'crypto';
 import express from 'express';
 import request from 'supertest';
 import { createDevice } from '../db/factories/device-factory';
 import { fakeKoReaderAnnotation } from '../db/factories/koreader-annotation-factory';
+import { createUser } from '../db/factories/user-factory';
 import { db } from '../knex';
+import { UserRepository } from '../kosync/user-repository';
 import { kopluginRouter, REQUIRED_PLUGIN_VERSION } from './koplugin-router';
+import { TEST_USER, TEST_USER_ID } from '../db/factories/test-user';
 
 describe('koplugin-router', () => {
   const app = express();
   app.use(express.json());
   app.use('/koplugin', kopluginRouter);
 
+  const SYNC_KEY = 'test-sync-key';
+  const authHeaders = {
+    'x-auth-user': TEST_USER.username,
+    'x-auth-key': createHash('md5').update(SYNC_KEY).digest('hex'),
+  };
+
+  beforeEach(async () => {
+    await UserRepository.setSyncKey(TEST_USER_ID, SYNC_KEY);
+  });
+
+  describe('authentication', () => {
+    it('returns 401 without credentials', async () => {
+      const response = await request(app)
+        .post('/koplugin/device')
+        .send({ id: 'device-123', model: 'Kindle', version: REQUIRED_PLUGIN_VERSION });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('returns 401 with a wrong sync key', async () => {
+      const response = await request(app)
+        .post('/koplugin/device')
+        .set({ ...authHeaders, 'x-auth-key': 'wrong' })
+        .send({ id: 'device-123', model: 'Kindle', version: REQUIRED_PLUGIN_VERSION });
+
+      expect(response.status).toBe(401);
+    });
+  });
+
   describe('POST /koplugin/device', () => {
     it('registers a device', async () => {
       const response = await request(app)
         .post('/koplugin/device')
+        .set(authHeaders)
         .send({ id: 'device-123', model: 'Kindle Paperwhite', version: REQUIRED_PLUGIN_VERSION });
 
       expect(response.status).toBe(200);
@@ -31,6 +65,7 @@ describe('koplugin-router', () => {
     it('returns 400 when device ID is missing', async () => {
       const response = await request(app)
         .post('/koplugin/device')
+        .set(authHeaders)
         .send({ model: 'Kindle', version: REQUIRED_PLUGIN_VERSION });
 
       expect(response.status).toBe(400);
@@ -40,6 +75,7 @@ describe('koplugin-router', () => {
     it('returns 400 when model is missing', async () => {
       const response = await request(app)
         .post('/koplugin/device')
+        .set(authHeaders)
         .send({ id: 'device-123', version: REQUIRED_PLUGIN_VERSION });
 
       expect(response.status).toBe(400);
@@ -49,6 +85,7 @@ describe('koplugin-router', () => {
     it('returns 400 when plugin version is incorrect', async () => {
       const response = await request(app)
         .post('/koplugin/device')
+        .set(authHeaders)
         .send({ id: 'device-123', model: 'Kindle', version: '0.1.0' });
 
       expect(response.status).toBe(400);
@@ -58,6 +95,7 @@ describe('koplugin-router', () => {
     it('returns 400 when plugin version is missing', async () => {
       const response = await request(app)
         .post('/koplugin/device')
+        .set(authHeaders)
         .send({ id: 'device-123', model: 'Kindle' });
 
       expect(response.status).toBe(400);
@@ -68,10 +106,11 @@ describe('koplugin-router', () => {
   describe('POST /koplugin/import', () => {
     it('imports books and stats', async () => {
       const bookMd5 = 'abc123def456';
-      const device = await createDevice(db);
+      const device = await createDevice(db, { user_id: TEST_USER_ID });
 
       const response = await request(app)
         .post('/koplugin/import')
+        .set(authHeaders)
         .send({
           version: REQUIRED_PLUGIN_VERSION,
           books: [
@@ -123,10 +162,11 @@ describe('koplugin-router', () => {
 
     it('imports books with annotations', async () => {
       const bookMd5 = 'def789ghi012';
-      const device = await createDevice(db);
+      const device = await createDevice(db, { user_id: TEST_USER_ID });
 
       const response = await request(app)
         .post('/koplugin/import')
+        .set(authHeaders)
         .send({
           version: REQUIRED_PLUGIN_VERSION,
           books: [
@@ -205,6 +245,7 @@ describe('koplugin-router', () => {
     it('returns 400 when plugin version is incorrect', async () => {
       const response = await request(app)
         .post('/koplugin/import')
+        .set(authHeaders)
         .send({
           version: '0.1.0',
           books: [],
@@ -213,6 +254,54 @@ describe('koplugin-router', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error).toContain('Unsupported plugin version');
+    });
+  });
+
+  describe('device ownership', () => {
+    it('claims an unowned device', async () => {
+      await createDevice(db, { id: 'legacy-device', user_id: null });
+
+      const response = await request(app)
+        .post('/koplugin/device')
+        .set(authHeaders)
+        .send({ id: 'legacy-device', model: 'Kobo', version: REQUIRED_PLUGIN_VERSION });
+
+      expect(response.status).toBe(200);
+      const device = await db('device').where({ id: 'legacy-device' }).first();
+      expect(device.user_id).toBe(TEST_USER_ID);
+    });
+
+    it("rejects registering another user's device", async () => {
+      const otherUser = await createUser(db, { username: 'other' });
+      await createDevice(db, { id: 'other-device', user_id: otherUser.id });
+
+      const response = await request(app)
+        .post('/koplugin/device')
+        .set(authHeaders)
+        .send({ id: 'other-device', model: 'Kobo', version: REQUIRED_PLUGIN_VERSION });
+
+      expect(response.status).toBe(403);
+    });
+
+    it("rejects importing data for another user's device", async () => {
+      const otherUser = await createUser(db, { username: 'other' });
+      await createDevice(db, { id: 'other-device', user_id: otherUser.id });
+
+      const response = await request(app)
+        .post('/koplugin/import')
+        .set(authHeaders)
+        .send({ version: REQUIRED_PLUGIN_VERSION, books: [], stats: [], device_id: 'other-device' });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('rejects imports without a device', async () => {
+      const response = await request(app)
+        .post('/koplugin/import')
+        .set(authHeaders)
+        .send({ version: REQUIRED_PLUGIN_VERSION, books: [], stats: [] });
+
+      expect(response.status).toBe(400);
     });
   });
 

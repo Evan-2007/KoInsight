@@ -33,7 +33,7 @@ router.get('/cover', async (req: Request, res: Response, next: NextFunction) => 
   }
 
   const book = await BooksRepository.getById(Number(bookId));
-  if (!book) {
+  if (!book || !(await BooksRepository.userHasBook(book.md5, req.user!.id))) {
     res.status(404).send('Book not found');
     return next();
   }

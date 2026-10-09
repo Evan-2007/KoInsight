@@ -52,7 +52,7 @@ export class KosyncRepository {
     return result;
   }
 
-  static async getAll(): Promise<Progress[]> {
+  static async getAll(user_id: User['id']): Promise<Progress[]> {
     const result = await db<Progress>('progress')
       .select(
         'progress.document',
@@ -64,7 +64,8 @@ export class KosyncRepository {
         'progress.updated_at',
         'user.username'
       )
-      .innerJoin('user', 'user.id', 'progress.user_id');
+      .innerJoin('user', 'user.id', 'progress.user_id')
+      .where('progress.user_id', user_id);
     return result;
   }
 }

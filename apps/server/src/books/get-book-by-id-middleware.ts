@@ -21,7 +21,7 @@ export async function getBookById(req: Request, res: Response, next: NextFunctio
   try {
     const book = await BooksRepository.getById(Number(bookId));
 
-    if (!book) {
+    if (!book || !(await BooksRepository.userHasBook(book.md5, req.user!.id))) {
       res.status(404).json({ error: 'Book not found' });
       return;
     }

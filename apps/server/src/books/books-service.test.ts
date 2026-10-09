@@ -6,18 +6,19 @@ import { createDevice } from '../db/factories/device-factory';
 import { createPageStat } from '../db/factories/page-stat-factory';
 import { db } from '../knex';
 import { BooksService } from './books-service';
+import { TEST_USER_ID } from '../db/factories/test-user';
 
 describe(BooksService.withData, () => {
   let device: Device;
 
   beforeEach(async () => {
-    device = await createDevice(db);
+    device = await createDevice(db, { user_id: TEST_USER_ID });
   });
   describe('total_pages', () => {
     it('returns reference pages if available', async () => {
       const book = await createBook(db, { title: 'Test Book 1', reference_pages: 121 });
 
-      const result = await BooksService.withData(book);
+      const result = await BooksService.withData(book, TEST_USER_ID);
 
       expect(result.total_pages).toEqual(121);
     });
@@ -27,10 +28,10 @@ describe(BooksService.withData, () => {
 
       await createBookDevice(db, book, device, { pages: 100 });
 
-      const device2 = await createDevice(db);
+      const device2 = await createDevice(db, { user_id: TEST_USER_ID });
       await createBookDevice(db, book, device2, { pages: 200 });
 
-      const result = await BooksService.withData(book);
+      const result = await BooksService.withData(book, TEST_USER_ID);
 
       expect(result.total_pages).toEqual(200);
     });
@@ -40,19 +41,18 @@ describe(BooksService.withData, () => {
     it('returns the sum of total read time from device data', async () => {
       const book1 = await createBook(db, { title: 'Test Book 1' });
 
-      await db<BookDevice>('book_device').insert([
-        { book_md5: book1.md5, total_read_time: 100 },
-        { book_md5: book1.md5, total_read_time: 200 },
-      ]);
+      const device2 = await createDevice(db, { user_id: TEST_USER_ID });
+      await createBookDevice(db, book1, device, { total_read_time: 100 });
+      await createBookDevice(db, book1, device2, { total_read_time: 200 });
 
-      const result = await BooksService.withData(book1);
+      const result = await BooksService.withData(book1, TEST_USER_ID);
 
       expect(result.total_read_time).toEqual(300);
     });
 
     it('returns 0 if no device data is available', async () => {
       const book1 = await createBook(db, { title: 'Test Book 1' });
-      const result = await BooksService.withData(book1);
+      const result = await BooksService.withData(book1, TEST_USER_ID);
 
       expect(result.total_read_time).toEqual(0);
     });
@@ -68,14 +68,14 @@ describe(BooksService.withData, () => {
       await createPageStat(db, book1, bookDevice, device, { start_time: 1720898718 });
       await createPageStat(db, book1, bookDevice, device, { start_time: 1720898818 });
 
-      const result = await BooksService.withData(book1);
+      const result = await BooksService.withData(book1, TEST_USER_ID);
 
       expect(result.started_reading).toEqual(1720898518000);
     });
 
     it('returns 0 if no stats are available', async () => {
       const book1 = await createBook(db, { title: 'Test Book 1' });
-      const result = await BooksService.withData(book1);
+      const result = await BooksService.withData(book1, TEST_USER_ID);
 
       expect(result.started_reading).toEqual(0);
     });
@@ -139,7 +139,7 @@ describe(BooksService.withData, () => {
         page: 9,
       });
 
-      const result = await BooksService.withData(book1);
+      const result = await BooksService.withData(book1, TEST_USER_ID);
 
       expect(result.read_per_day).toEqual({
         [startOfDay(day1 * 1000).getTime()]: 111,
@@ -150,7 +150,7 @@ describe(BooksService.withData, () => {
 
     it('returns an empty object if no stats are available', async () => {
       const book1 = await createBook(db, { title: 'Test Book 1' });
-      const result = await BooksService.withData(book1);
+      const result = await BooksService.withData(book1, TEST_USER_ID);
 
       expect(result.read_per_day).toEqual({});
     });
@@ -164,7 +164,7 @@ describe(BooksService.withData, () => {
           book_md5: book1.md5,
           pages: 200, // each page counts as half
         });
-        const device2 = await createDevice(db);
+        const device2 = await createDevice(db, { user_id: TEST_USER_ID });
         const bookDevice2 = await createBookDevice(db, book1, device2, {
           book_md5: book1.md5,
           pages: 50, // each page counts as 2
@@ -182,14 +182,14 @@ describe(BooksService.withData, () => {
         await createPageStat(db, book1, bookDevice2, device, { page: 10 });
         await createPageStat(db, book1, bookDevice2, device, { page: 11 });
 
-        const result = await BooksService.withData(book1);
+        const result = await BooksService.withData(book1, TEST_USER_ID);
 
         expect(result.total_read_pages).toEqual(10);
       });
 
       it('returns 0 if no pages are read', async () => {
         const book1 = await createBook(db, { title: 'Test Book 1', reference_pages: 100 });
-        const result = await BooksService.withData(book1);
+        const result = await BooksService.withData(book1, TEST_USER_ID);
 
         expect(result.total_read_pages).toEqual(0);
       });
@@ -202,7 +202,7 @@ describe(BooksService.withData, () => {
           book_md5: book1.md5,
           pages: 200,
         });
-        const device2 = await createDevice(db);
+        const device2 = await createDevice(db, { user_id: TEST_USER_ID });
         const bookDevice2 = await createBookDevice(db, book1, device2, {
           book_md5: book1.md5,
           pages: 50,
@@ -218,14 +218,14 @@ describe(BooksService.withData, () => {
         await createPageStat(db, book1, bookDevice2, device, { page: 10 });
         await createPageStat(db, book1, bookDevice2, device, { page: 11 });
 
-        const result = await BooksService.withData(book1);
+        const result = await BooksService.withData(book1, TEST_USER_ID);
 
         expect(result.total_read_pages).toEqual(8);
       });
 
       it('returns 0 if no pages are read', async () => {
         const book1 = await createBook(db, { title: 'Test Book 1', reference_pages: 100 });
-        const result = await BooksService.withData(book1);
+        const result = await BooksService.withData(book1, TEST_USER_ID);
 
         expect(result.total_read_pages).toEqual(0);
       });
@@ -239,8 +239,8 @@ describe(BooksService.getUniqueReadPages, () => {
   let book1: Book;
 
   beforeEach(async () => {
-    device1 = await createDevice(db);
-    device2 = await createDevice(db);
+    device1 = await createDevice(db, { user_id: TEST_USER_ID });
+    device2 = await createDevice(db, { user_id: TEST_USER_ID });
     book1 = await createBook(db, { title: 'Test Book 1', reference_pages: 100 });
   });
 

@@ -5,6 +5,7 @@ import { createDevice } from '../db/factories/device-factory';
 import { createPageStat } from '../db/factories/page-stat-factory';
 import { db } from '../knex';
 import { StatsRepository } from './stats-repository';
+import { TEST_USER_ID } from '../db/factories/test-user';
 
 describe(StatsRepository, () => {
   describe(StatsRepository.getAll, () => {
@@ -12,7 +13,7 @@ describe(StatsRepository, () => {
     let book1: Book;
 
     beforeEach(async () => {
-      device1 = await createDevice(db);
+      device1 = await createDevice(db, { user_id: TEST_USER_ID });
       book1 = await createBook(db, { title: 'Book 1', soft_deleted: false });
     });
 
@@ -29,7 +30,7 @@ describe(StatsRepository, () => {
       await createPageStat(db, book2, bookDevice2, device1, { page: 2, duration: 10 });
       await createPageStat(db, book2, bookDevice2, device1, { page: 3, duration: 10 });
 
-      const stats = await StatsRepository.getAll();
+      const stats = await StatsRepository.getAll(TEST_USER_ID);
       expect(stats).toHaveLength(3);
       expect(stats.map((s) => s.book_md5)).not.includes(book2.md5);
     });

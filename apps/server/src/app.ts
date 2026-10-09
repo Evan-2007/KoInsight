@@ -1,9 +1,12 @@
-import cors from 'cors';
+import cookieSession from 'cookie-session';
 import express, { Request, Response } from 'express';
 import { Server } from 'http';
 import morgan from 'morgan';
 import path from 'path';
 import { openAiRouter } from './ai/open-ai-router';
+import { authRouter } from './auth/auth-router';
+import { initOidcClient } from './auth/oidc-client';
+import { requireSession } from './auth/require-session';
 import { booksRouter } from './books/books-router';
 import { appConfig } from './config';
 import { devicesRouter } from './devices/devices-router';
@@ -21,19 +24,28 @@ async function setupServer() {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.use(morgan('tiny'));
 
-  // if (appConfig.env === 'development') {
-  // Allow requests from dev build
-  app.use(cors({ origin: '*' }));
-  // }
+  // Needed for secure cookies behind a reverse proxy
+  app.set('trust proxy', 1);
+  app.use(
+    cookieSession({
+      name: 'koinsight',
+      secret: appConfig.auth.sessionSecret,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: appConfig.auth.appUrl.startsWith('https://'),
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    })
+  );
 
   app.use('/', kosyncRouter); // Needs to be mounted at root to follow KoSync API
-  app.use('/api/plugin', kopluginRouter);
-  app.use('/api/devices', devicesRouter);
-  app.use('/api/books', booksRouter);
-  app.use('/api/stats', statsRouter);
-  app.use('/api/upload', uploadRouter);
-  app.use('/api/open-library', openLibraryRouter);
-  app.use('/api/ai', openAiRouter);
+  app.use('/api/auth', authRouter);
+  app.use('/api/plugin', kopluginRouter); // Authenticated with sync key headers
+  app.use('/api/devices', requireSession, devicesRouter);
+  app.use('/api/books', requireSession, booksRouter);
+  app.use('/api/stats', requireSession, statsRouter);
+  app.use('/api/upload', requireSession, uploadRouter);
+  app.use('/api/open-library', requireSession, openLibraryRouter);
+  app.use('/api/ai', requireSession, openAiRouter);
 
   // Serve react app
   app.use(express.static(appConfig.webBuildPath));
@@ -61,6 +73,8 @@ async function main() {
   console.log('Running database migrations');
   await db.migrate.latest({ directory: path.join(__dirname, 'db', 'migrations') });
   console.log('Database migrated successfully');
+
+  await initOidcClient();
 
   setupServer().then((server) => {
     process.on('SIGINT', (signal) => stopServer(signal, server));

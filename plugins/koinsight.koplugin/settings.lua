@@ -17,6 +17,8 @@ KoInsightSettings.__index = KoInsightSettings
 local SETTING_KEY = "koinsight"
 local DEFAULTS = {
   server_url = "",
+  username = "",
+  sync_key = "",
   sync_on_suspend = true,
   aggressive_suspend_sync = false,
   suspend_connect_timeout_s = 10, -- clamped to [3, 60]
@@ -101,6 +103,13 @@ end
 function KoInsightSettings:setServerURL(url)
   url = tostring(url or ""):gsub("/*$", "")
   self:update({ server_url = url })
+end
+
+function KoInsightSettings:getUsername()
+  return self.data.username or DEFAULTS.username
+end
+function KoInsightSettings:getSyncKey()
+  return self.data.sync_key or DEFAULTS.sync_key
 end
 
 function KoInsightSettings:getSyncOnSuspendEnabled()
@@ -197,6 +206,17 @@ function KoInsightSettings:editServerSettings()
         description = _("Server URL:"),
         hint = _("http://example.com:port"),
       },
+      {
+        text = self.data.username,
+        description = _("Username:"),
+        hint = _("KoInsight username"),
+      },
+      {
+        text = self.data.sync_key,
+        description = _("Sync key:"),
+        hint = _("Generate in KoInsight web app"),
+        text_type = "password",
+      },
     },
     buttons = {
       {
@@ -211,7 +231,9 @@ function KoInsightSettings:editServerSettings()
           text = _("Info"),
           callback = function()
             UIManager:show(InfoMessage:new({
-              text = _("Enter the location of your KoInsight server"),
+              text = _(
+                "Enter the location of your KoInsight server, your username and the sync key generated in the KoInsight web app."
+              ),
             }))
           end,
         },
@@ -220,6 +242,8 @@ function KoInsightSettings:editServerSettings()
           callback = function()
             local myfields = self.settings_dialog:getFields()
             local server_url = myfields[1]
+            local username = myfields[2]
+            local sync_key = myfields[3]
 
             if server_url == "" then
                 UIManager:show(InfoMessage:new({
@@ -235,7 +259,15 @@ function KoInsightSettings:editServerSettings()
                 return
             end
 
+            if username == "" or sync_key == "" then
+                UIManager:show(InfoMessage:new({
+                    text = _("Please enter your username and sync key."),
+                }))
+                return
+            end
+
             self:setServerURL(server_url)
+            self:update({ username = username, sync_key = sync_key })
             UIManager:close(self.settings_dialog)
             UIManager:show(InfoMessage:new({
                 text = _("KoInsight settings saved."),

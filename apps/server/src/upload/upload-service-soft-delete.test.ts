@@ -6,6 +6,7 @@ import { createBook } from '../db/factories/book-factory';
 import { createDevice } from '../db/factories/device-factory';
 import { createAnnotation } from '../db/factories/annotation-factory';
 import { Book, Device, KoReaderBook, PageStat, KoReaderAnnotation } from '@koinsight/common/types';
+import { TEST_USER_ID } from '../db/factories/test-user';
 
 describe('UploadService - Soft Delete', () => {
   let book: Book;
@@ -23,7 +24,7 @@ describe('UploadService - Soft Delete', () => {
     await db.raw('PRAGMA foreign_keys = ON');
 
     book = await createBook(db);
-    device = await createDevice(db);
+    device = await createDevice(db, { user_id: TEST_USER_ID });
 
     koreaderBook = {
       id: book.id!,

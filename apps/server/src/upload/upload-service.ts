@@ -14,6 +14,13 @@ import { db } from '../knex';
 export class UploadService {
   private static UNKNOWN_DEVICE_ID = 'manual-upload';
 
+  /**
+   * Device used for manual uploads of statistics.sqlite3 through the web app
+   */
+  static manualUploadDeviceId(userId: number): string {
+    return `${this.UNKNOWN_DEVICE_ID}-${userId}`;
+  }
+
   static openStatisticsDbFile(uploadedFilePath: string) {
     const db = new Database(uploadedFilePath, { readonly: true });
     const bookIds = db.prepare('SELECT id FROM book').all();
@@ -25,13 +32,13 @@ export class UploadService {
     return db;
   }
 
-  static extractDataFromStatisticsDb(db: DatabaseType) {
+  static extractDataFromStatisticsDb(db: DatabaseType, deviceId: string = this.UNKNOWN_DEVICE_ID) {
     const newBooks = db.prepare('SELECT * FROM book').all() as KoReaderBook[];
     const dbPageStats = db.prepare('SELECT * FROM page_stat_data').all() as KoReaderPageStat[];
 
     const newPageStats: PageStat[] = dbPageStats.map(({ id_book, ...stat }) => ({
       book_md5: newBooks.find((book) => book.id === id_book)!.md5,
-      device_id: this.UNKNOWN_DEVICE_ID,
+      device_id: deviceId,
       ...stat,
     }));
 

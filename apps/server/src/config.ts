@@ -25,6 +25,14 @@ export const appConfig = {
     maxFileSizeMegaBytes: MAX_FILE_SIZE_MB,
   },
 
+  auth: {
+    issuerUrl: process.env.OIDC_ISSUER_URL ?? '',
+    clientId: process.env.OIDC_CLIENT_ID ?? '',
+    clientSecret: process.env.OIDC_CLIENT_SECRET ?? '',
+    appUrl: (process.env.APP_URL ?? '').replace(/\/+$/, ''),
+    sessionSecret: process.env.SESSION_SECRET ?? '',
+  },
+
   db: {
     dev: path.resolve(DATA_PATH, 'dev.sqlite3'),
     prod: path.resolve(DATA_PATH, 'prod.sqlite3'),

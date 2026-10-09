@@ -4,6 +4,7 @@ import { createBook } from '../db/factories/book-factory';
 import { createDevice } from '../db/factories/device-factory';
 import { db } from '../knex';
 import { BooksService } from './books-service';
+import { TEST_USER_ID } from '../db/factories/test-user';
 
 describe('BooksService with annotations', () => {
   let book: Book;
@@ -11,7 +12,7 @@ describe('BooksService with annotations', () => {
 
   beforeEach(async () => {
     book = await createBook(db);
-    device = await createDevice(db);
+    device = await createDevice(db, { user_id: TEST_USER_ID });
   });
 
   describe('withData', () => {
@@ -36,7 +37,7 @@ describe('BooksService with annotations', () => {
         pageno: 150,
       });
 
-      const result = await BooksService.withData(book);
+      const result = await BooksService.withData(book, TEST_USER_ID);
 
       // Check that annotations are included
       expect(result.annotations).toBeDefined();
@@ -63,7 +64,7 @@ describe('BooksService with annotations', () => {
     });
 
     it('returns empty annotations when book has none', async () => {
-      const result = await BooksService.withData(book);
+      const result = await BooksService.withData(book, TEST_USER_ID);
 
       expect(result.annotations).toEqual([]);
       expect(result.highlights_count).toBe(0);
@@ -72,13 +73,13 @@ describe('BooksService with annotations', () => {
     });
 
     it('handles multiple devices annotations', async () => {
-      const device2 = await createDevice(db);
+      const device2 = await createDevice(db, { user_id: TEST_USER_ID });
 
       await createAnnotation(db, book, device, 'highlight');
       await createAnnotation(db, book, device2, 'highlight');
       await createAnnotation(db, book, device2, 'note');
 
-      const result = await BooksService.withData(book);
+      const result = await BooksService.withData(book, TEST_USER_ID);
 
       expect(result.annotations).toHaveLength(3);
       expect(result.highlights_count).toBe(2);
@@ -91,7 +92,7 @@ describe('BooksService with annotations', () => {
         pos1: JSON.stringify({ x: 400, y: 220, page: 42 }),
       });
 
-      const result = await BooksService.withData(book);
+      const result = await BooksService.withData(book, TEST_USER_ID);
 
       const highlight = result.annotations[0];
       expect(highlight.pos0).toBeDefined();

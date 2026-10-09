@@ -3,7 +3,10 @@ import { Book } from '@koinsight/common/types/book';
 import { BookDevice } from '@koinsight/common/types/book-device';
 import { Genre } from '@koinsight/common/types/genre';
 import { sum } from 'ramda';
+import { Annotation } from '@koinsight/common/types/annotation';
+import { PageStat } from '@koinsight/common/types/page-stat';
 import { AnnotationsRepository } from '../annotations/annotations-repository';
+import { DeviceRepository } from '../devices/device-repository';
 import { GenreRepository } from '../genres/genre-repository';
 import { db } from '../knex';
 import { StatsRepository } from '../stats/stats-repository';
@@ -30,25 +33,64 @@ export class BooksRepository {
     return db<Book>('book').where({ id }).update({ soft_deleted });
   }
 
-  static async delete(book: Book) {
+  /**
+   * Deletes a user's data for a book. The book itself is only removed once no
+   * other user has it on one of their devices.
+   */
+  static async delete(book: Book, userId: number) {
     await db.transaction(async (trx) => {
-      await trx<BookDevice>('book_device').where({ book_md5: book.md5 }).delete();
+      const deviceIds = DeviceRepository.idsForUser(userId);
 
-      await trx<BookGenre>('book_genre').where({ book_md5: book.md5 }).delete();
+      await trx<Annotation>('annotation')
+        .where({ book_md5: book.md5 })
+        .whereIn('device_id', deviceIds)
+        .delete();
+      await trx<PageStat>('page_stat')
+        .where({ book_md5: book.md5 })
+        .whereIn('device_id', deviceIds)
+        .delete();
+      await trx<BookDevice>('book_device')
+        .where({ book_md5: book.md5 })
+        .whereIn('device_id', deviceIds)
+        .delete();
 
-      await trx<Book>('book').where({ id: book.id }).delete();
+      const remaining = await trx<BookDevice>('book_device').where({ book_md5: book.md5 }).first();
+      if (!remaining) {
+        await trx<BookGenre>('book_genre').where({ book_md5: book.md5 }).delete();
+        await trx<Book>('book').where({ id: book.id }).delete();
+      }
     });
+  }
+
+  /**
+   * Whether the book has data from one of the user's devices
+   */
+  static async userHasBook(md5: Book['md5'], userId: number): Promise<boolean> {
+    const result = await db<BookDevice>('book_device')
+      .where({ book_md5: md5 })
+      .whereIn('device_id', DeviceRepository.idsForUser(userId))
+      .first();
+    return !!result;
   }
 
   static async searchByTitle(title: string): Promise<Book[]> {
     return db<Book>('book').where('title', 'like', `%${title}%`);
   }
 
-  static async getBookDevices(md5: Book['md5']): Promise<BookDevice[]> {
-    return db<BookDevice>('book_device').where({ book_md5: md5 });
+  static async getBookDevices(md5: Book['md5'], userId?: number): Promise<BookDevice[]> {
+    const query = db<BookDevice>('book_device').where({ book_md5: md5 });
+
+    if (userId !== undefined) {
+      query.whereIn('device_id', DeviceRepository.idsForUser(userId));
+    }
+
+    return query;
   }
 
-  static async getAllWithData(returnDeleted: boolean = false): Promise<BookWithData[]> {
+  static async getAllWithData(
+    userId: number,
+    returnDeleted: boolean = false
+  ): Promise<BookWithData[]> {
     const books = await db('book')
       .select(
         'book.*',
@@ -75,18 +117,24 @@ export class BooksRepository {
           )
           FROM book_device bd
           WHERE bd.book_md5 = book.md5
-        ) as book_devices`)
+            AND bd.device_id IN (SELECT id FROM device WHERE user_id = ?)
+        ) as book_devices`, [userId])
+      )
+      .whereExists(
+        db('book_device')
+          .whereRaw('book_device.book_md5 = book.md5')
+          .whereIn('book_device.device_id', DeviceRepository.idsForUser(userId))
       )
       .where(returnDeleted ? {} : { 'book.soft_deleted': false });
 
     return Promise.all(
       // FIXME: book is any, this looses typesafety
       books.map(async (book): Promise<BookWithData> => {
-        const stats = await StatsRepository.getByBookMD5(book.md5);
+        const stats = await StatsRepository.getByBookMD5(book.md5, userId);
 
         // Get annotations data
-        const annotations = await AnnotationsRepository.getByBookMd5(book.md5);
-        const annotationCounts = await AnnotationsRepository.getCountsByType(book.md5);
+        const annotations = await AnnotationsRepository.getByBookMd5(book.md5, undefined, userId);
+        const annotationCounts = await AnnotationsRepository.getCountsByType(book.md5, userId);
 
         const genres = JSON.parse(book.genres) as Genre[];
         const bookDevices = JSON.parse(book.book_devices) as BookDevice[];
@@ -119,7 +167,7 @@ export class BooksRepository {
           highlights_count: annotationCounts.highlight,
           notes_count: annotationCounts.note,
           bookmarks_count: annotationCounts.bookmark,
-          deleted_count: await AnnotationsRepository.getDeletedCount(book.md5),
+          deleted_count: await AnnotationsRepository.getDeletedCount(book.md5, userId),
           stats,
         };
       })

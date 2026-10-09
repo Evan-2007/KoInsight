@@ -7,6 +7,7 @@ import { createGenre } from '../db/factories/genre-factory';
 import { createPageStat } from '../db/factories/page-stat-factory';
 import { db } from '../knex';
 import { BooksRepository } from './books-repository';
+import { TEST_USER_ID } from '../db/factories/test-user';
 
 describe(BooksRepository, () => {
   describe('getAll', () => {
@@ -139,7 +140,7 @@ describe(BooksRepository, () => {
   describe('getBookDeviceData', () => {
     it('returns book device data', async () => {
       const book = await createBook(db, { title: 'Test Book' });
-      const device = await createDevice(db, { model: 'Kindle' });
+      const device = await createDevice(db, { user_id: TEST_USER_ID, model: 'Kindle' });
 
       await createBookDevice(db, book, device, { last_open: 3, notes: 10 });
 
@@ -182,8 +183,8 @@ describe(BooksRepository, () => {
       book2 = await createBook(db, { title: 'Test Book 2' });
       await createBook(db, { title: 'Test Book 3' });
 
-      device1 = await createDevice(db, { model: 'Kindle' });
-      device2 = await createDevice(db, { model: 'Kobo' });
+      device1 = await createDevice(db, { user_id: TEST_USER_ID, model: 'Kindle' });
+      device2 = await createDevice(db, { user_id: TEST_USER_ID, model: 'Kobo' });
 
       const genre1 = await createGenre(db, { name: 'Test Genre 1' });
       const genre2 = await createGenre(db, { name: 'Test Genre 2' });
@@ -194,13 +195,20 @@ describe(BooksRepository, () => {
       ]);
     });
 
+    async function attachAllBooksToDevice1() {
+      const books = await db<Book>('book').select('*');
+      await Promise.all(books.map((book) => createBookDevice(db, book, device1)));
+    }
+
     it('returns all books', async () => {
-      result = await BooksRepository.getAllWithData();
+      await attachAllBooksToDevice1();
+      result = await BooksRepository.getAllWithData(TEST_USER_ID);
       expect(result).toHaveLength(3);
     });
 
     it('returns correct genres', async () => {
-      result = await BooksRepository.getAllWithData();
+      await attachAllBooksToDevice1();
+      result = await BooksRepository.getAllWithData(TEST_USER_ID);
       expect(result[0].genres).toEqual([
         expect.objectContaining({ name: 'Test Genre 1' }),
         expect.objectContaining({ name: 'Test Genre 2' }),
@@ -228,7 +236,7 @@ describe(BooksRepository, () => {
         total_read_pages: 40,
       });
 
-      result = await BooksRepository.getAllWithData();
+      result = await BooksRepository.getAllWithData(TEST_USER_ID);
 
       expect(result[0].last_open).toEqual(10);
 
@@ -256,7 +264,7 @@ describe(BooksRepository, () => {
           )
         );
 
-        result = await BooksRepository.getAllWithData();
+        result = await BooksRepository.getAllWithData(TEST_USER_ID);
 
         expect(result[0].total_read_pages).toEqual(20);
       });
@@ -275,7 +283,7 @@ describe(BooksRepository, () => {
             createPageStat(db, book1, bookDevice2, device2, { page: i + 1, total_pages: 70 })
           )
         );
-        result = await BooksRepository.getAllWithData();
+        result = await BooksRepository.getAllWithData(TEST_USER_ID);
         expect(result[0].total_read_pages).toEqual(34);
       });
 
@@ -293,7 +301,7 @@ describe(BooksRepository, () => {
             )
           );
 
-          result = await BooksRepository.getAllWithData();
+          result = await BooksRepository.getAllWithData(TEST_USER_ID);
 
           expect(result[0].total_read_pages).toEqual(10);
         });
@@ -314,7 +322,7 @@ describe(BooksRepository, () => {
             )
           );
 
-          result = await BooksRepository.getAllWithData();
+          result = await BooksRepository.getAllWithData(TEST_USER_ID);
 
           expect(result[0].total_read_pages).toEqual(20);
         });

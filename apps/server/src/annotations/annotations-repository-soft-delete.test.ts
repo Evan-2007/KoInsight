@@ -5,6 +5,7 @@ import { createBook } from '../db/factories/book-factory';
 import { createDevice } from '../db/factories/device-factory';
 import { createAnnotation } from '../db/factories/annotation-factory';
 import { Book, Device, Annotation } from '@koinsight/common/types';
+import { TEST_USER_ID } from '../db/factories/test-user';
 
 describe('AnnotationsRepository - Soft Delete', () => {
   let book: Book;
@@ -12,7 +13,7 @@ describe('AnnotationsRepository - Soft Delete', () => {
 
   beforeEach(async () => {
     book = await createBook(db);
-    device = await createDevice(db);
+    device = await createDevice(db, { user_id: TEST_USER_ID });
   });
 
   describe('markAsDeleted', () => {

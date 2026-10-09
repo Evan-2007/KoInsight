@@ -1,15 +1,20 @@
 import { Annotation, AnnotationType, KoReaderAnnotation } from '@koinsight/common/types';
+import { DeviceRepository } from '../devices/device-repository';
 import { db } from '../knex';
 
 export class AnnotationsRepository {
   /**
-   * Get all annotations for a book, optionally filtered by device
+   * Get all annotations for a book, optionally filtered by device and/or owner
    */
-  static async getByBookMd5(md5: string, deviceId?: string): Promise<Annotation[]> {
+  static async getByBookMd5(md5: string, deviceId?: string, userId?: number): Promise<Annotation[]> {
     let query = db<Annotation>('annotation').where({ book_md5: md5 }).orderBy('datetime', 'desc');
 
     if (deviceId) {
       query = query.where({ device_id: deviceId });
+    }
+
+    if (userId !== undefined) {
+      query = query.whereIn('device_id', DeviceRepository.idsForUser(userId));
     }
 
     const annotations = await query;
@@ -160,9 +165,17 @@ export class AnnotationsRepository {
   /**
    * Get counts by type for a book
    */
-  static async getCountsByType(md5: string): Promise<Record<AnnotationType, number>> {
-    const counts = await db('annotation')
-      .where({ book_md5: md5 })
+  static async getCountsByType(
+    md5: string,
+    userId?: number
+  ): Promise<Record<AnnotationType, number>> {
+    let query = db('annotation').where({ book_md5: md5 });
+
+    if (userId !== undefined) {
+      query = query.whereIn('device_id', DeviceRepository.idsForUser(userId));
+    }
+
+    const counts = await query
       .whereNull('deleted_at') // Only count non-deleted annotations
       .select('annotation_type')
       .count('* as count')
@@ -184,9 +197,14 @@ export class AnnotationsRepository {
   /**
    * Get total count of deleted annotations for a book
    */
-  static async getDeletedCount(md5: string): Promise<number> {
-    const result = await db('annotation')
-      .where({ book_md5: md5 })
+  static async getDeletedCount(md5: string, userId?: number): Promise<number> {
+    let query = db('annotation').where({ book_md5: md5 });
+
+    if (userId !== undefined) {
+      query = query.whereIn('device_id', DeviceRepository.idsForUser(userId));
+    }
+
+    const result = await query
       .whereNotNull('deleted_at')
       .count('* as count')
       .first();

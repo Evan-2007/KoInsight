@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { unlinkSync } from 'fs';
 import multer from 'multer';
 import { appConfig } from '../config';
+import { DeviceRepository } from '../devices/device-repository';
 import { UploadService } from './upload-service';
 
 const storage = multer.diskStorage({
@@ -46,7 +47,10 @@ router.post('/', upload.single('file'), async (req, res, next) => {
   }
 
   try {
-    const { newBooks, newPageStats } = UploadService.extractDataFromStatisticsDb(db);
+    const deviceId = UploadService.manualUploadDeviceId(req.user!.id);
+    await DeviceRepository.registerForUser({ id: deviceId, model: 'Manual upload' }, req.user!.id);
+
+    const { newBooks, newPageStats } = UploadService.extractDataFromStatisticsDb(db, deviceId);
     await UploadService.uploadStatisticData(newBooks, newPageStats);
 
     res.status(200).json({ message: 'Database imported successfully' });

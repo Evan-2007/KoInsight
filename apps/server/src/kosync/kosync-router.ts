@@ -1,8 +1,9 @@
 import { Progress } from '@koinsight/common/types/progress';
 import { Request, Response, Router } from 'express';
+import { requireSession } from '../auth/require-session';
 import { authenticate } from './kosync-authenticate-middleware';
 import { KosyncRepository } from './kosync-repository';
-import { UserExistsError, UserRepository } from './user-repository';
+import { UserRepository } from './user-repository';
 
 const router = Router();
 
@@ -20,26 +21,11 @@ const router = Router();
  * ],
  * "expected_status" : [201, 402]
  */
-router.post('/users/create', async (req: Request, res: Response) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    res.status(400).json({ error: 'Username and password are required' });
-    return;
-  }
-  try {
-    await UserRepository.createUser(username, password);
-  } catch (error) {
-    if (error instanceof UserExistsError) {
-      res.status(402).json({ error: 'User already exists' });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
-    console.error(error);
-    return;
-  }
-
-  res.status(201).json({ message: 'User created successfully' });
+router.post('/users/create', async (_req: Request, res: Response) => {
+  // Users are created by logging in to KoInsight with OIDC
+  res.status(403).json({
+    error: 'Registration is disabled. Log in to KoInsight and generate a sync key instead.',
+  });
 });
 
 router.get('/users/auth', async (req: Request, res: Response) => {
@@ -151,8 +137,11 @@ router.get(
   }
 );
 
-router.get('/syncs/progress', async (req: Request, res: Response) => {
-  const progresses = await KosyncRepository.getAll();
+/**
+ * Lists the logged in user's progress (used by the web app, not part of the KoSync API)
+ */
+router.get('/syncs/progress', requireSession, async (req: Request, res: Response) => {
+  const progresses = await KosyncRepository.getAll(req.user!.id);
   res.status(200).json(progresses);
 });
 

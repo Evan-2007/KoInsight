@@ -7,6 +7,7 @@ import { createPageStat } from '../db/factories/page-stat-factory';
 import { db } from '../knex';
 import { StatsService } from './stats-service';
 import { subDays } from 'date-fns';
+import { TEST_USER_ID } from '../db/factories/test-user';
 
 describe(StatsService, () => {
   let device: Device;
@@ -14,7 +15,7 @@ describe(StatsService, () => {
   let bookDevice: BookDevice;
 
   beforeEach(async () => {
-    device = await createDevice(db);
+    device = await createDevice(db, { user_id: TEST_USER_ID });
     book = await createBook(db, { title: 'Test Book 1' });
     bookDevice = await createBookDevice(db, book, device, { pages: 100 });
   });

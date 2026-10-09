@@ -4,6 +4,7 @@ import { createBook } from '../db/factories/book-factory';
 import { createDevice } from '../db/factories/device-factory';
 import { db } from '../knex';
 import { AnnotationsRepository } from './annotations-repository';
+import { TEST_USER_ID } from '../db/factories/test-user';
 
 describe('AnnotationsRepository', () => {
   let book: Book;
@@ -11,7 +12,7 @@ describe('AnnotationsRepository', () => {
 
   beforeEach(async () => {
     book = await createBook(db);
-    device = await createDevice(db);
+    device = await createDevice(db, { user_id: TEST_USER_ID });
   });
 
   describe('getByBookMd5', () => {
@@ -32,7 +33,7 @@ describe('AnnotationsRepository', () => {
     });
 
     it('filters by device when deviceId is provided', async () => {
-      const device2 = await createDevice(db);
+      const device2 = await createDevice(db, { user_id: TEST_USER_ID });
 
       await createAnnotation(db, book, device, 'highlight');
       await createAnnotation(db, book, device2, 'highlight');
@@ -109,7 +110,7 @@ describe('AnnotationsRepository', () => {
     });
 
     it('filters by device when provided', async () => {
-      const device2 = await createDevice(db);
+      const device2 = await createDevice(db, { user_id: TEST_USER_ID });
 
       await createAnnotation(db, book, device, 'highlight');
       await createAnnotation(db, book, device2, 'highlight');
@@ -136,7 +137,7 @@ describe('AnnotationsRepository', () => {
     });
 
     it('returns empty array when device has no annotations', async () => {
-      const device2 = await createDevice(db);
+      const device2 = await createDevice(db, { user_id: TEST_USER_ID });
       const annotations = await AnnotationsRepository.getByDeviceId(device2.id);
       expect(annotations).toHaveLength(0);
     });

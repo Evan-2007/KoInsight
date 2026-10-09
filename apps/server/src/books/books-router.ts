@@ -13,7 +13,7 @@ router.use('/:bookId/cover', coversRouter);
  */
 router.get('/', async (req: Request, res: Response) => {
   const returnDeleted = Boolean(req.query.showHidden && req.query.showHidden === 'true');
-  const books = await BooksRepository.getAllWithData(returnDeleted);
+  const books = await BooksRepository.getAllWithData(req.user!.id, returnDeleted);
   res.status(200).json(books);
 });
 
@@ -23,7 +23,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:bookId', getBookById, async (req: Request, res: Response, next: NextFunction) => {
   const book = req.book!;
   const includeDeleted = req.query.includeDeleted === 'true';
-  const bookWithData = await BooksService.withData(book, includeDeleted);
+  const bookWithData = await BooksService.withData(book, req.user!.id, includeDeleted);
   res.status(200).json(bookWithData);
 });
 
@@ -34,7 +34,7 @@ router.delete('/:bookId', getBookById, async (req: Request, res: Response) => {
   const book = req.book!;
 
   try {
-    await BooksRepository.delete(book);
+    await BooksRepository.delete(book, req.user!.id);
     res.status(200).json({ message: 'Book deleted' });
   } catch (error) {
     console.error(error);
